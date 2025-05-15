@@ -2,8 +2,45 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
 
+from camel_tools.morphology.database import MorphologyDB
+from camel_tools.morphology.analyzer import Analyzer
+
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app)
+
+db = MorphologyDB.builtin_db()
+analyzer = Analyzer(db)
+
+def analyze_word(word):
+    analyses = analyzer.analyze(word)
+    if not analyses:
+        return {
+            'word': word,
+            'diac': '',
+            'pos': 'غير معروف',
+            'lex': '',
+            'bw': '',
+            'case': '',
+            'explanation': 'لم يتم إيجاد تحليل لهذه الكلمة.'
+        }
+    ana = analyses[0]  # take the first analysis
+    # Simple إعراب explanation example (you can expand)
+    case = ana.get('case', '')
+    pos = ana.get('pos', '')
+    explanation = f"هذه الكلمة هي {pos}"
+    if case:
+        explanation += f" وإعرابها حالة {case}"
+    else:
+        explanation += " ولا يوجد إعراب محدد."
+    return {
+        'word': word,
+        'diac': ana.get('diac', ''),
+        'pos': pos,
+        'lex': ana.get('lex', ''),
+        'bw': ana.get('bw', ''),
+        'case': case,
+        'explanation': explanation
+    }
 
 @app.route('/')
 def home():
@@ -13,23 +50,13 @@ def home():
 def analyze():
     data = request.get_json()
     sentence = data.get('sentence', '').strip()
-
     if not sentence:
         return jsonify({"error": "يرجى إدخال جملة."}), 400
 
-    # Dummy example analysis response - replace with your real NLP logic
     words = sentence.split()
-    response = []
-    for w in words:
-        response.append({
-            "word": w,
-            "diac": "-",      # placeholder for pronunciation
-            "pos": "NOUN",    # placeholder for part of speech
-            "lex": w,         # placeholder for root
-            "bw": "code"      # placeholder for Buckwalter or code
-        })
+    results = [analyze_word(w) for w in words]
 
-    return jsonify(response)
+    return jsonify(results)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
