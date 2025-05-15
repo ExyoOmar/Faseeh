@@ -11,36 +11,28 @@ CORS(app)
 db = MorphologyDB.builtin_db()
 analyzer = Analyzer(db)
 
-def analyze_word(word):
-    analyses = analyzer.analyze(word)
-    if not analyses:
-        return {
-            'word': word,
-            'diac': '',
-            'pos': 'غير معروف',
-            'lex': '',
-            'bw': '',
-            'case': '',
-            'explanation': 'لم يتم إيجاد تحليل لهذه الكلمة.'
-        }
-    ana = analyses[0]  # take the first analysis
-    # Simple إعراب explanation example (you can expand)
-    case = ana.get('case', '')
-    pos = ana.get('pos', '')
-    explanation = f"هذه الكلمة هي {pos}"
-    if case:
-        explanation += f" وإعرابها حالة {case}"
-    else:
-        explanation += " ولا يوجد إعراب محدد."
-    return {
-        'word': word,
-        'diac': ana.get('diac', ''),
-        'pos': pos,
-        'lex': ana.get('lex', ''),
-        'bw': ana.get('bw', ''),
-        'case': case,
-        'explanation': explanation
-    }
+def generate_i3rab(word, analysis):
+    pos = analysis.get('pos', '')
+    lex = analysis.get('lex', '')
+    diac = analysis.get('diac', '')
+    # Basic starter إعراب rules (expand as you learn!)
+    # Check for verb past tense with attached ت
+    if pos == 'verb' and 'past' in analysis.get('aspect', ''):
+        if word.endswith('ت'):
+            return "فعل ماضي مبني على السكون لاتصاله بتاء المتحرك"
+        else:
+            return "فعل ماضي مبني على الفتح"
+    # ضمير متصل (very basic check)
+    if lex in ['ت', 'ي', 'نا', 'كم', 'هم', 'ه']:
+        return f"ضمير متصل مبني في محل رفع فاعل أو مفعول به حسب موقعه"
+    # حرف جر simple check
+    if lex in ['الى', 'في', 'على', 'من', 'عن', 'ب', 'ك']:
+        return "حرف جر"
+    # اسم مجرور بـ حرف جر (very simple)
+    if lex == 'حديقة':
+        return "اسم مجرور بـ 'الى' وعلامة جره الكسرة الظاهرة"
+    # Default fallback
+    return "شرح إعرابي غير متوفر لهذه الكلمة."
 
 @app.route('/')
 def home():
@@ -54,7 +46,22 @@ def analyze():
         return jsonify({"error": "يرجى إدخال جملة."}), 400
 
     words = sentence.split()
-    results = [analyze_word(w) for w in words]
+    results = []
+    for w in words:
+        analyses = analyzer.analyze(w)
+        if not analyses:
+            results.append({
+                'word': w,
+                'explanation': 'لم يتم إيجاد تحليل لهذه الكلمة.'
+            })
+        else:
+            # take first analysis for simplicity
+            ana = analyses[0]
+            i3rab_text = generate_i3rab(w, ana)
+            results.append({
+                'word': w,
+                'explanation': i3rab_text
+            })
 
     return jsonify(results)
 
